@@ -1,54 +1,62 @@
-import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
 import java.util.Random;
 
 public class Sudoku extends JPanel {
     static final int SIZE = 9;
-    static final int BOX_SIZE = 3;
+    static final int BOX = 3;
     static int dimension = 500;
+
     JLabel[][] board;
-    int[][] solution;  // full solution
-    int[][] puzzle;    // what is displayed to the user (blanks = 0)
+    int[][] solution;
+    int[][] puzzle;
+
     int selectedNumber = -1; // -1 means nothing selected
     static int[] numCounts = new int[SIZE + 1];
     int maxNumCount = 9;
+
     private boolean gameFinished = false;
 
+    // COLORS
+    private final Color cream = new Color(243, 230, 208);
+    private final Color green = new Color(140, 220, 140);
+    private final Color blue = new Color(180, 200, 240);
+    private final Color beige = new Color(223, 208, 183);
+    private final Color red = new Color(220, 140, 140);
 
     public Sudoku() {
         this.setBounds(350, 60, dimension, dimension);
         this.setLayout(new GridLayout(SIZE, SIZE));
         this.setBackground(Color.BLACK);
-        this.setBorder(BorderFactory.createLineBorder(new Color(4, 3, 3), 2));
-        this.sudoku();
+        this.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2));
+
+        initSudoku();
         this.setVisible(true);
     }
 
-    public void sudoku() {
+    private void initSudoku() {
         board = new JLabel[SIZE][SIZE];
         solution = new int[SIZE][SIZE];
-
-        // fill solution using backtracking
-        generate_solution(0, 0);
-
-        // copy solution to puzzle array
         puzzle = new int[SIZE][SIZE];
-        for (int i = 0; i < SIZE; i++) {
-            for (int j = 0; j < SIZE; j++) {
-                puzzle[i][j] = solution[i][j];
+
+        generateSolution(0, 0);
+
+        // copy solution to puzzle
+        for (int r = 0; r < SIZE; r++) {
+            for (int c = 0; c < SIZE; c++) {
+                puzzle[r][c] = solution[r][c];
             }
         }
 
-        // create puzzle by removing numbers (balanced per box)
+        // remove numbers (balanced per box)
         Random rand = new Random();
-        int blanksPerBox = 4; // adjust difficulty
-        for (int boxRow = 0; boxRow < BOX_SIZE; boxRow++) {
-            for (int boxCol = 0; boxCol < BOX_SIZE; boxCol++) {
+        int blanksPerBox = 4;
+        for (int boxR = 0; boxR < BOX; boxR++) {
+            for (int boxC = 0; boxC < BOX; boxC++) {
                 int removed = 0;
                 while (removed < blanksPerBox) {
-                    int r = boxRow * BOX_SIZE + rand.nextInt(BOX_SIZE);
-                    int c = boxCol * BOX_SIZE + rand.nextInt(BOX_SIZE);
+                    int r = boxR * BOX + rand.nextInt(BOX);
+                    int c = boxC * BOX + rand.nextInt(BOX);
                     if (puzzle[r][c] != 0) {
                         puzzle[r][c] = 0;
                         removed++;
@@ -57,167 +65,108 @@ public class Sudoku extends JPanel {
             }
         }
 
-        // add JLabels for display
-        for (int row = 0; row < SIZE; row++) {
-            for (int col = 0; col < SIZE; col++) {
-                if (puzzle[row][col] == 0) {
-                    board[row][col] = newLabel(row, col, 0); // blank
-                } else {
-                    board[row][col] = newLabel(row, col, puzzle[row][col]);
-                }
-                this.add(board[row][col]);
+        // build board
+        for (int r = 0; r < SIZE; r++) {
+            for (int c = 0; c < SIZE; c++) {
+                int val = puzzle[r][c];
+                board[r][c] = makeCell(r, c, val);
+                this.add(board[r][c]);
             }
         }
 
-        numCounts();
+        updateNumCounts();
     }
 
-    public boolean generate_solution(int row, int col) {
+    private boolean generateSolution(int row, int col) {
         if (row == SIZE) return true;
 
         int nextRow = (col == SIZE - 1) ? row + 1 : row;
         int nextCol = (col == SIZE - 1) ? 0 : col + 1;
 
-        Integer[] numbers = new Integer[SIZE];
-        for (int i = 0; i < SIZE; i++) numbers[i] = i + 1;
+        Integer[] nums = new Integer[SIZE];
+        for (int i = 0; i < SIZE; i++) nums[i] = i + 1;
+        java.util.Collections.shuffle(java.util.Arrays.asList(nums));
 
-        // shuffle numbers
-        java.util.Collections.shuffle(java.util.Arrays.asList(numbers));
-
-        for (int num : numbers) {
-            if (isValid(row, col, num)) {
-                solution[row][col] = num;
-                if (generate_solution(nextRow, nextCol)) return true;
+        for (int n : nums) {
+            if (isValid(row, col, n)) {
+                solution[row][col] = n;
+                if (generateSolution(nextRow, nextCol)) return true;
                 solution[row][col] = 0; // backtrack
             }
         }
-
         return false;
     }
 
-    public boolean isValid(int row, int col, int num) {
-        for (int c = 0; c < SIZE; c++)
-            if (solution[row][c] == num) return false;
-        for (int r = 0; r < SIZE; r++)
-            if (solution[r][col] == num) return false;
-        int startRow = row - row % BOX_SIZE;
-        int startCol = col - col % BOX_SIZE;
-        for (int r = startRow; r < startRow + BOX_SIZE; r++)
-            for (int c = startCol; c < startCol + BOX_SIZE; c++)
-                if (solution[r][c] == num) return false;
+    private boolean isValid(int r, int c, int n) {
+        for (int x = 0; x < SIZE; x++) {
+            if (solution[r][x] == n) return false;
+            if (solution[x][c] == n) return false;
+        }
+        int startR = r - r % BOX, startC = c - c % BOX;
+        for (int i = startR; i < startR + BOX; i++) {
+            for (int j = startC; j < startC + BOX; j++) {
+                if (solution[i][j] == n) return false;
+            }
+        }
         return true;
     }
 
-    public JLabel newLabel(int r, int c, int n) {
-        JLabel pl;
-        if (n == 0) {
-            pl = new JLabel("", SwingConstants.CENTER); // blank
-        } else {
-            pl = new JLabel(Integer.toString(n), SwingConstants.CENTER);
-        }
-        pl.setOpaque(true);
-        pl.setBackground(new Color(243, 230, 208));
-        pl.setBorder(BorderFactory.createLineBorder(new Color(4, 3, 3), 1));
-        // figure out border thickness
-        int top = 1;
-        int left = 1;
-        int bottom = 1;
-        int right = 1;
-        // thicker line every 3 rows
-        if (r % 3 == 0) {
-            top = 2;
-        }
-        if (c % 3 == 0) {
-            left = 2;
-        }
-        // bottom and right edges of the board
-        if (r == SIZE - 1) {
-            bottom = 2;
-        }
-        if (c == SIZE - 1) {
-            right = 2;
-        }
+    private JLabel makeCell(int r, int c, int n) {
+        JLabel cell = new JLabel(n == 0 ? "" : Integer.toString(n), SwingConstants.CENTER);
+        cell.setOpaque(true);
+        cell.setBackground(cream);
 
-        pl.setBorder(BorderFactory.createMatteBorder(top, left, bottom, right, Color.BLACK));
+        int top = (r % 3 == 0) ? 2 : 1;
+        int left = (c % 3 == 0) ? 2 : 1;
+        int bottom = (r == SIZE - 1) ? 2 : 1;
+        int right = (c == SIZE - 1) ? 2 : 1;
+        cell.setBorder(BorderFactory.createMatteBorder(top, left, bottom, right, Color.BLACK));
 
         if (n == 0) {
-            // track locked state in JLabel
-            pl.putClientProperty("locked", false);
-
-            pl.addMouseListener(new java.awt.event.MouseAdapter() {
+            cell.putClientProperty("locked", false);
+            cell.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseClicked(java.awt.event.MouseEvent e) {
-                    boolean locked = (boolean) pl.getClientProperty("locked");
+                    boolean locked = (boolean) cell.getClientProperty("locked");
 
-                    // If the cell already has a number, make it the selected number
-                    if (!pl.getText().equals("")) {
-                        int val = Integer.parseInt(pl.getText());
+                    if (!cell.getText().equals("")) {
+                        int val = Integer.parseInt(cell.getText());
                         setSelectedNumber(val);
                         return;
                     }
 
-                    // Otherwise, if blank, try to place the selected number
                     if (selectedNumber != -1 && !locked) {
                         if (selectedNumber == solution[r][c]) {
-                            pl.setText(Integer.toString(selectedNumber));
-                            pl.setBackground(new Color(140, 220, 140)); // green
-                            pl.putClientProperty("locked", true);
-                            numCounts();
-                            //check if the entire puzzle is solved
-                            if (checkGameOver()) {
-                                finishGame();
-                            }
+                            cell.setText(Integer.toString(selectedNumber));
+                            cell.setBackground(green);
+                            cell.putClientProperty("locked", true);
+                            updateNumCounts();
+                            if (isSolved()) finishGame();
                         } else {
-                            Color original = pl.getBackground();
-                            pl.setBackground(new Color(220, 140, 140));
-                            new javax.swing.Timer(300, evt -> {
-                                pl.setBackground(original);
-                                ((javax.swing.Timer) evt.getSource()).stop();
-                            }).start();
+                            flashRed(cell);
                         }
                     }
                 }
             });
         }
-
-        return pl;
+        return cell;
     }
+
+    private void flashRed(JLabel cell) {
+        Color original = cell.getBackground();
+        cell.setBackground(red);
+        new javax.swing.Timer(300, evt -> {
+            cell.setBackground(original);
+            ((javax.swing.Timer) evt.getSource()).stop();
+        }).start();
+    }
+
     public void setSelectedNumber(int n) {
-        this.selectedNumber = n;
-
-        Color highlightColor = new Color(180, 200, 240); // soft blue
-        Color givenColor = new Color(243, 230, 208);     // default background
-        Color correctGreen = new Color(140, 220, 140);   // locked correct
-        Color usedUpColor = new Color(223, 208, 183);    // fully used
-
-        for (int r = 0; r < SIZE; r++) {
-            for (int c = 0; c < SIZE; c++) {
-                JLabel cell = board[r][c];
-                String text = cell.getText();
-                if (text.equals("")) continue;
-
-                int val = Integer.parseInt(text);
-
-                if (cell.getBackground().equals(correctGreen)) {
-                    continue; // keep green
-                }
-
-                if (numCounts[val] == maxNumCount) {
-                    cell.setBackground(usedUpColor);
-                } else if (val == n) {
-                    cell.setBackground(highlightColor); // highlight only chosen number
-                } else {
-                    cell.setBackground(givenColor); // reset others
-                }
-            }
-        }
+        selectedNumber = n;
+        refreshColors();
     }
-    public void updateCellColors() {
-        Color highlightColor = new Color(180, 200, 240); // blue
-        Color givenColor = new Color(243, 230, 208);     // cream
-        Color correctGreen = new Color(140, 220, 140);   // green
-        Color usedUpColor = new Color(223, 208, 183);    // beige
 
+    private void refreshColors() {
         for (int r = 0; r < SIZE; r++) {
             for (int c = 0; c < SIZE; c++) {
                 JLabel cell = board[r][c];
@@ -225,89 +174,47 @@ public class Sudoku extends JPanel {
                 if (text.equals("")) continue;
 
                 int val = Integer.parseInt(text);
-
-                if (cell.getBackground().equals(correctGreen)) {
-                    continue; // keep green if locked correct
-                }
+                if (cell.getBackground().equals(green)) continue;
 
                 if (selectedNumber != -1 && val == selectedNumber) {
-                    cell.setBackground(highlightColor); // ✅ keep blue highlight
+                    cell.setBackground(blue);
                 } else if (numCounts[val] == maxNumCount) {
-                    cell.setBackground(usedUpColor);
+                    cell.setBackground(beige);
                 } else {
-                    cell.setBackground(givenColor);
+                    cell.setBackground(cream);
                 }
             }
         }
     }
 
-
-    public void numCounts() {
+    private void updateNumCounts() {
         for (int i = 1; i <= SIZE; i++) numCounts[i] = 0;
-        Color correctGreen = new Color(140, 220, 140);
 
         for (int r = 0; r < SIZE; r++) {
             for (int c = 0; c < SIZE; c++) {
                 String text = board[r][c].getText();
                 if (text.equals("")) continue;
                 int val = Integer.parseInt(text);
-                switch (val) {
-                    case 1 -> numCounts[1]++;
-                    case 2 -> numCounts[2]++;
-                    case 3 -> numCounts[3]++;
-                    case 4 -> numCounts[4]++;
-                    case 5 -> numCounts[5]++;
-                    case 6 -> numCounts[6]++;
-                    case 7 -> numCounts[7]++;
-                    case 8 -> numCounts[8]++;
-                    case 9 -> numCounts[9]++;
-                }
+                numCounts[val]++;
             }
         }
-        // highlight overused numbers
+        refreshColors();
+    }
+
+    private boolean isSolved() {
         for (int r = 0; r < SIZE; r++) {
             for (int c = 0; c < SIZE; c++) {
                 String text = board[r][c].getText();
-                if (text.equals("")) continue;
+                if (text.equals("")) return false;
                 int val = Integer.parseInt(text);
-                if (numCounts[val] == maxNumCount) {
-                    board[r][c].setBackground(new Color(223, 208, 183));
-                }
-                // remove the else that resets to base colour
+                if (val != solution[r][c]) return false;
             }
         }
-        // after counts update, refresh cell colors properly
-        updateCellColors();
-
-        // print counts
-        for (int i = 1; i <= SIZE; i++) {
-            System.out.println("Number " + i + " appears " + numCounts[i] + " times");
-        }
+        return true;
     }
 
-    // returns true if all cells are filled and match the solution
-    private boolean checkGameOver() {
-        for (int i = 0; i < SIZE; i++) {
-            for (int j = 0; j < SIZE; j++) {
-                String text = board[i][j].getText();
-                if (text.equals("")) return false; // empty -> not finished
-
-                int val;
-                try {
-                    val = Integer.parseInt(text);
-                } catch (NumberFormatException ex) {
-                    return false; // invalid -> not finished
-                }
-
-                if (val != solution[i][j]) return false; // mismatch -> not finished
-            }
-        }
-        return true; // all cells present and correct
-    }
-
-    // call this once when the game is finished
     private void finishGame() {
-        if (gameFinished) return; // guard: only once
+        if (gameFinished) return;
         gameFinished = true;
 
         for (int r = 0; r < SIZE; r++) {
@@ -315,11 +222,6 @@ public class Sudoku extends JPanel {
                 board[r][c].putClientProperty("locked", true);
             }
         }
-
-        // stop any timers here if you have one (example variable 'time')
-        // if (time != null) time.stop();
-
         JOptionPane.showMessageDialog(this, "Game Over! You solved it!", "Sudoku", JOptionPane.INFORMATION_MESSAGE);
     }
-
 }
